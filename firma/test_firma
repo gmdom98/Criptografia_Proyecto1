@@ -1,0 +1,130 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Oct 30 13:22:41 2021
+
+@author: GMD24
+"""
+
+import matplotlib.pyplot as plt
+import time
+#import ecdsa
+import re
+
+from matplotlib.pyplot import figure
+
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes
+#from cryptography.hazmat.primitives import exceptions
+
+def test():
+    
+    
+    test_gen = open("186-4ecdsatestvectors/SigGen.txt","r")
+    test_ver = open("186-4ecdsatestvectors/SigVer.rsp","r")
+
+
+    rsa_pss_tv = []
+    ecdsa_571_k_tv = []
+    ecdsa_521_tv = []
+    
+    prom_rsa = 0
+    prom_ecdsa_571 = 0
+    prom_ecdsa_521 = 0
+    
+    #Generación de llaves privadas 
+    pk_rsa = rsa.generate_private_key(public_exponent=65537,key_size=1024)
+    pk_ecdsa_521 = ec.generate_private_key(ec.SECP521R1())
+    pk_ecdsa_571 = ec.generate_private_key(ec.SECT571K1())
+    
+    #Generación de llaves públicas
+    pbk_rsa = pk_rsa.public_key()
+    pbk_ecdsa_521 = pk_ecdsa_521.public_key()
+    pbk_ecdsa_571 = pk_ecdsa_571.public_key()
+    
+    for line in test_gen:
+        if re.match("^Msg",line):
+            
+            line = line.replace("Msg = ","")
+            line = line.replace("\n","")
+            
+            line_bytes = line.encode()
+            #for i in range(10):
+            
+            ti = time.time()#_ns()
+            rsa_sig = pk_rsa.sign(line_bytes,padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),hashes.SHA256())
+            tf = time.time()#_ns()
+            rsa_pss_tv.append(tf-ti)
+
+            ti = time.time()
+            ecdsa_521_sig = pk_ecdsa_521.sign(line_bytes,ec.ECDSA(hashes.SHA256()))
+            tf = time.time()
+            ecdsa_521_tv.append(tf-ti)
+
+
+            ti = time.time()
+            ecdsa_571_sig = pk_ecdsa_571.sign(line_bytes,ec.ECDSA(hashes.SHA256()))
+            tf = time.time()
+            ecdsa_571_k_tv.append(tf-ti)
+            
+    return rsa_pss_tv,ecdsa_571_k_tv,ecdsa_521_tv
+
+
+def average():
+    num = []
+    rsaf = []
+    ecdsa521 = []
+    ecdsa571 = []
+
+    rsa_prom,ecdsa521_prom,ecdsa571_prom = test()
+    
+
+    for i in range(9):
+        rsa_1,ecdsa571_1,ecdsa521_1 = test()
+        rsaf.append(rsa_1)
+        ecdsa521.append(ecdsa521_1)
+        ecdsa571.append(ecdsa571_1)
+    
+
+
+    for i in range(len(rsaf)):
+        for x in range(len(rsaf[0])):
+            rsa_prom[x] += rsaf[i][x]
+            ecdsa521_prom[x] += ecdsa521[i][x]
+            ecdsa571_prom[x] += ecdsa571[i][x]
+            
+            
+    for x in range(len(rsa_prom)):
+        rsa_prom[x] = rsa_prom[x]/10
+        ecdsa521_prom[x] = ecdsa521_prom[x]/10
+        ecdsa571_prom[x] = ecdsa571_prom[x]/10
+        num.append(x)
+    
+    print(len(rsa_prom))
+    
+    #plt.figure(figsize=(75,40))
+    fig = plt.figure(figsize=(100,75))
+    fig.add_subplot(941)
+    plt.plot(num,rsa_prom,'-b',label='rsa')
+    #plt.plot(num,auxrsa,'-r',label='rsa')
+    plt.plot(num,ecdsa521_prom,'-g',label='ecdsa521')
+    plt.plot(num,ecdsa571_prom,'-r',label='ecdsa571')
+    
+    #plt.rc('axes',labelsize=30)
+    #plt.rc('legend',fontsize=30)
+    plt.xlabel('mensajes')
+    plt.ylabel('tiempo')
+    
+    plt.legend(loc='best')
+    plt.title('RSA vs ECDSA 521 vs ECDSA 571')
+    #fig = plt.figure()
+    
+    #fig.add_subplot(222)
+    plt.show()
+
+    return 0
+
+average()
